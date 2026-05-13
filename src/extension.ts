@@ -10669,6 +10669,72 @@ class CompanyDashboardPanel {
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
     private _refreshTimer: NodeJS.Timeout | null = null;
+    private _activeOfficeId: string = 'default';
+
+    /* v2.90 — 다중 가상 사무실 스캔 및 동적 파싱 엔진 */
+    private _listOffices(): { id: string; name: string }[] {
+        const res = [{ id: 'default', name: '🏢 본사 핵심팀 (10명)' }];
+        try {
+            const officesDir = path.join(getCompanyDir(), 'offices');
+            if (fs.existsSync(officesDir)) {
+                const items = fs.readdirSync(officesDir, { withFileTypes: true });
+                for (const item of items) {
+                    if (item.isDirectory()) {
+                        let label = item.name;
+                        if (label === 'product_detail') label = '📦 상품상세 기획실 (7명)';
+                        res.push({ id: item.name, name: label });
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+        return res;
+    }
+
+    private _getOfficeAgents(officeId: string): { agentsMap: Record<string, AgentDef>; agentOrder: string[] } {
+        if (officeId === 'default') {
+            return { agentsMap: AGENTS, agentOrder: AGENT_ORDER };
+        }
+        const agentsMap: Record<string, AgentDef> = {};
+        const agentOrder: string[] = [];
+        try {
+            const targetDir = path.join(getCompanyDir(), 'offices', officeId);
+            if (fs.existsSync(targetDir)) {
+                const files = fs.readdirSync(targetDir);
+                for (const f of files) {
+                    if (f.endsWith('.md')) {
+                        const id = f.replace(/\.md$/, '');
+                        agentOrder.push(id);
+                        const content = _safeReadText(path.join(targetDir, f));
+                        
+                        const nameMatch = content.match(/-\s*\*\*이름\*\*\s*[:：]\s*([^\r\n]+)/);
+                        const roleMatch = content.match(/#\s*(?:[\p{Emoji}\uD800-\uDBFF\uDC00-\uDFFF])?\s*\[?([^\]\r\n]+)\]?/u);
+                        const missionMatch = content.match(/-\s*\*\*미션\*\*\s*[:：]\s*([^\r\n]+)/);
+                        const specialtyMatch = content.match(/-\s*\*\*전문성\*\*\s*[:：]\s*([^\r\n]+)/);
+                        const emojiMatch = content.match(/#\s*([\p{Emoji}\uD800-\uDBFF\uDC00-\uDFFF])/u);
+                        
+                        const name = nameMatch ? nameMatch[1].trim() : id;
+                        const role = roleMatch ? roleMatch[1].replace(/Persona|\(.*\)/g, '').trim() : 'Specialist';
+                        const specialty = specialtyMatch ? specialtyMatch[1].trim() : (missionMatch ? missionMatch[1].trim() : '전문 태스크 수행');
+                        const emoji = emojiMatch ? emojiMatch[1] : '👤';
+                        const tagline = missionMatch ? missionMatch[1].trim() : specialty;
+                        
+                        const colors = ['#FF4444', '#E1306C', '#A78BFA', '#22D3EE', '#F5C518', '#84CC16', '#F472B6', '#60A5FA', '#FBBF24'];
+                        const color = colors[agentOrder.length % colors.length];
+
+                        agentsMap[id] = {
+                            id, name, role, emoji, color, specialty,
+                            tagline: tagline.slice(0, 100)
+                        };
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+        
+        if (agentOrder.length === 0) {
+            return { agentsMap: AGENTS, agentOrder: AGENT_ORDER };
+        }
+        return { agentsMap, agentOrder };
+    }
 
     public static createOrShow(extensionUri: vscode.Uri) {
         const column = vscode.ViewColumn.Active;
@@ -10692,7 +10758,11 @@ class CompanyDashboardPanel {
         this._panel.onDidDispose(() => this._dispose(), null, this._disposables);
         this._panel.webview.onDidReceiveMessage(async (msg) => {
             try {
-                if (msg?.type === 'refresh') {
+                if (msg?.type === 'switchOffice') {
+                    this._activeOfficeId = msg.officeId || 'default';
+                    this._postToast(`🏢 사무실 전환 완료`, false);
+                    await this._sendState();
+                } else if (msg?.type === 'refresh') {
                     await this._sendState();
                 } else if (msg?.type === 'openRevenueDashboard') {
                     /* v2.89.142 — 매출 카드 버튼 → 풀 대시보드 패널 띄움 */
@@ -11075,6 +11145,7 @@ class CompanyDashboardPanel {
     }
 
     private async _sendState() {
+        const { agentsMap, agentOrder } = this._getOfficeAgents(this._activeOfficeId);
         const cfg = this._loadCfg();
         const oauthConnected = isYoutubeOAuthConnected();
         const company = readCompanyName() || '1인 기업';
@@ -11125,8 +11196,8 @@ class CompanyDashboardPanel {
            profile photo when available (영숙/레오). The photo URI is resolved
            through the panel's webview so the asset is reachable from the
            sandboxed iframe. */
-        const agentTeam = AGENT_ORDER.map(id => {
-            const a = AGENTS[id];
+        const agentTeam = agentOrder.map(id => {
+            const a = agentsMap[id];
             if (!a) return null;
             const myTasks = openTasks.filter(t => Array.isArray(t.agentIds) && t.agentIds.includes(id));
             let lastActivity = '';
@@ -11278,7 +11349,7 @@ class CompanyDashboardPanel {
                             title: t.title,
                             priority: _coercePriority(t.priority),
                             owner: t.owner,
-                            agentEmoji: t.agentIds && t.agentIds[0] ? (AGENTS[t.agentIds[0]]?.emoji || '🤖') : (t.owner === 'user' ? '👤' : '🤖'),
+                            agentEmoji: t.agentIds && t.agentIds[0] ? (agentsMap[t.agentIds[0]]?.emoji || '🤖') : (t.owner === 'user' ? '👤' : '🤖'),
                             dueAt: t.dueAt || '',
                             dueLabel: t.dueAt ? _formatDueLabel(t.dueAt) : '',
                             recurrence: t.recurrence || '',
@@ -11286,7 +11357,7 @@ class CompanyDashboardPanel {
                         })),
                 },
                 approvals: pendingApprovals.map(a => {
-                    const ag = AGENTS[a.agentId];
+                    const ag = agentsMap[a.agentId];
                     return {
                         id: a.id, shortId: a.id.slice(-9),
                         emoji: ag?.emoji || '🤖',
@@ -11387,7 +11458,12 @@ class CompanyDashboardPanel {
         </svg>
       </div>
       <div>
-        <div class="hero-eyebrow">Linked Ai · 직원 에이전트 보기</div>
+        <div class="hero-eyebrow" style="display:flex; align-items:center; gap:12px;">
+          <span>Linked Ai · 다중 가상 사무실 시스템</span>
+          <select id="officeSelect" class="btn ghost small" title="작업할 가상 사무실을 선택하세요" style="background:rgba(255,255,255,0.15); border-radius:6px; padding:3px 10px; color:#fff; font-weight:bold; cursor:pointer; border:1px solid rgba(255,255,255,0.2);">
+            ${this._listOffices().map(o => `<option value="${o.id}" ${o.id === this._activeOfficeId ? 'selected' : ''} style="background:#0f172a; color:#fff;">${o.name}</option>`).join('')}
+          </select>
+        </div>
         <div class="hero-title" id="companyName">불러오는 중…</div>
         <div class="hero-meta">
           <span class="meta-pill" id="todayLabel"></span>
@@ -11529,6 +11605,15 @@ class CompanyDashboardPanel {
 <div class="toast" id="toast"></div>
 
 <script>${_loadWebviewAsset('dashboard.js')}</script>
+<script>
+  const vsApi = acquireVsCodeApi();
+  const offSel = document.getElementById('officeSelect');
+  if (offSel) {
+    offSel.addEventListener('change', (e) => {
+      vsApi.postMessage({ type: 'switchOffice', officeId: e.target.value });
+    });
+  }
+</script>
 </body></html>`;
     }
 }
