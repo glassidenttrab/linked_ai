@@ -10762,6 +10762,42 @@ class CompanyDashboardPanel {
                     this._activeOfficeId = msg.officeId || 'default';
                     this._postToast(`🏢 사무실 전환 완료`, false);
                     await this._sendState();
+                } else if (msg?.type === 'createOffice') {
+                    try {
+                        const oid = String(msg.officeId || '').trim();
+                        const oname = String(msg.officeName || '').trim();
+                        if (!oid) {
+                            this._postToast(`⚠️ 사무실 ID(폴더명)가 유효하지 않습니다.`, true);
+                            return;
+                        }
+                        const targetDir = path.join(getCompanyDir(), 'offices', oid);
+                        if (fs.existsSync(targetDir)) {
+                            this._postToast(`⚠️ 이미 존재하는 사무실 폴더입니다: ${oid}`, true);
+                            return;
+                        }
+                        fs.mkdirSync(targetDir, { recursive: true });
+
+                        /* 7인조 기본 에이전트 마크다운 구성 생성 */
+                        const templates: Record<string, string> = {
+                            'ceo': `# 👑 [대표 Persona]\n- **이름**: ${oname ? oname.split(' ')[0] + ' 대표' : '대표 킴'}\n- **역할**: CEO\n- **미션**: 팀의 최종 목표 설정 및 산출물 방향성 총괄\n- **전문성**: 의사결정 및 자원 분배\n\n대표로서 각 전문가들의 의견을 조율하고 최종 승인합니다.`,
+                            'analyst': `# 📊 [분석가 Persona]\n- **이름**: 분석가 리\n- **역할**: Analyst\n- **미션**: 최신 시장 트렌드 및 경쟁사 데이터 수집·분석\n- **전문성**: 데이터 분석 및 인사이트 도출\n\n객관적 지표를 기반으로 팀의 기획 방향에 논리를 제공합니다.`,
+                            'designer': `# 🎨 [디자이너 Persona]\n- **이름**: 디자이너 박\n- **역할**: Designer\n- **미션**: 매력적인 시각 자산 제작 및 UI/UX 검수\n- **전문성**: 그래픽 디자인 및 톤앤매너 유지\n\n사용자들의 시선을 사로잡는 프리미엄 디자인을 담당합니다.`,
+                            'developer': `# 💻 [개발자 Persona]\n- **이름**: 개발자 최\n- **역할**: Developer\n- **미션**: 기술 검토 및 워크플로우 자동화 구현\n- **전문성**: 코딩, 프롬프트 엔지니어링, 시스템 연동\n\n아이디어를 실제로 동작하는 산출물과 스크립트로 구현합니다.`,
+                            'marketer': `# 📣 [마케터 Persona]\n- **이름**: 마케터 정\n- **역할**: Marketer\n- **미션**: 타겟 고객층 대상 바이럴 전략 수립 및 카피라이팅\n- **전문성**: 채널 배포 및 사용자 유입 극대화\n\n우리 팀의 결과물이 세상에 널리 알려지도록 홍보합니다.`,
+                            'editor': `# 📝 [에디터 Persona]\n- **이름**: 에디터 강\n- **역할**: Editor\n- **미션**: 텍스트 및 미디어 콘텐츠 매끄러운 윤문 및 최종 편집\n- **전문성**: 맞춤법 검수 및 스토리텔링 강화\n\n모든 메시지가 명확하고 감동을 주도록 다듬습니다.`,
+                            'qa': `# 🧐 [QA 매니저 Persona]\n- **이름**: QA 매니저 조\n- **역할**: QA\n- **미션**: 산출물의 무결성 검증 및 교차 비판\n- **전문성**: 논리적 허점 탐색 및 치열한 토론 유도\n\n"정말 이게 최선인가요?"를 외치며 팀의 기준을 한 단계 높입니다.`
+                        };
+
+                        for (const [fn, content] of Object.entries(templates)) {
+                            fs.writeFileSync(path.join(targetDir, `${fn}.md`), content, 'utf-8');
+                        }
+
+                        this._activeOfficeId = oid;
+                        this._postToast(`🎉 새 사무실 [${oname || oid}] 개설 및 7인조 팀 구성 완료!`, false);
+                        await this._sendState();
+                    } catch (e: any) {
+                        this._postToast(`⚠️ 사무실 생성 실패: ${e?.message || e}`, true);
+                    }
                 } else if (msg?.type === 'refresh') {
                     await this._sendState();
                 } else if (msg?.type === 'openRevenueDashboard') {
@@ -11463,6 +11499,7 @@ class CompanyDashboardPanel {
           <select id="officeSelect" class="btn ghost small" title="작업할 가상 사무실을 선택하세요" style="background:rgba(255,255,255,0.15); border-radius:6px; padding:3px 10px; color:#fff; font-weight:bold; cursor:pointer; border:1px solid rgba(255,255,255,0.2);">
             ${this._listOffices().map(o => `<option value="${o.id}" ${o.id === this._activeOfficeId ? 'selected' : ''} style="background:#0f172a; color:#fff;">${o.name}</option>`).join('')}
           </select>
+          <button id="addOfficeBtn" class="btn ghost small" title="새로운 가상 사무실 개설" style="background:rgba(16, 185, 129, 0.2); border-radius:6px; padding:3px 8px; color:#34d399; font-weight:bold; cursor:pointer; border:1px solid rgba(16, 185, 129, 0.3); margin-left:-6px;">+ 추가</button>
         </div>
         <div class="hero-title" id="companyName">불러오는 중…</div>
         <div class="hero-meta">
@@ -11611,6 +11648,15 @@ class CompanyDashboardPanel {
   if (offSel) {
     offSel.addEventListener('change', (e) => {
       vsApi.postMessage({ type: 'switchOffice', officeId: e.target.value });
+    });
+  }
+  const addOffBtn = document.getElementById('addOfficeBtn');
+  if (addOffBtn) {
+    addOffBtn.addEventListener('click', () => {
+      const idInput = prompt('새로운 가상 사무실의 ID(폴더명, 영문/숫자 권장)를 입력하세요.\n예: blog_team');
+      if (!idInput) return;
+      const nameInput = prompt('대시보드에 표시될 사무실 이름을 입력하세요.\n예: 📝 블로그 작성 전문팀');
+      vsApi.postMessage({ type: 'createOffice', officeId: idInput, officeName: nameInput || idInput });
     });
   }
 </script>
