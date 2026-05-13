@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/icon.png" width="120" alt="Connect AI Logo" />
+  <img src="assets/icon.png" width="120" alt="Linked Ai Oz Logo" />
 </p>
 
-<h1 align="center">Connect AI v2 (P-Reinforce)</h1>
+<h1 align="center">Linked Ai Oz 워크스페이스</h1>
 
 <p align="center">
   <strong>100% Local · 100% Offline · Autonomous Knowledge Engine</strong><br/>
@@ -20,7 +20,7 @@
 
 ## 🌟 Overview: The P-Reinforce Architecture
 
-Connect AI v2.1.30은 단순한 코딩 에이전트를 넘어섭니다. **P-Reinforce 아키텍처**를 기반으로 설계된 이 에이전트는 사용자의 모든 정보와 지시를 받아들여 **스스로 의미를 분석하고, 폴더를 생성하고, 마크다운 위키 파일로 정리하여 클라우드에 자동 백업**하는 자율 지식 정원사(Autonomous Gardener)입니다.
+Linked Ai v2.1.30은 단순한 코딩 에이전트를 넘어섭니다. **P-Reinforce 아키텍처**를 기반으로 설계된 이 에이전트는 사용자의 모든 정보와 지시를 받아들여 **스스로 의미를 분석하고, 폴더를 생성하고, 마크다운 위키 파일로 정리하여 클라우드에 자동 백업**하는 자율 지식 정원사(Autonomous Gardener)입니다.
 
 ---
 
@@ -81,14 +81,14 @@ npx vsce package
 1. [lmstudio.ai](https://lmstudio.ai/) 에서 설치
 2. Gemma 3, Llama 3 또는 Qwen Coder 등 원하는 모델 로드
 3. **Developer 탭(좌측 `<>` 메뉴)** 진입 후 **Start Server** 클릭
-4. Connect AI의 ⚙️ 채팅방 설정에서 엔진을 "LM Studio"로 선택 (자동 모델 인덱싱 완료)
+4. Linked Ai의 ⚙️ 채팅방 설정에서 엔진을 "LM Studio"로 선택 (자동 모델 인덱싱 완료)
 
 ### ✅ Ollama (Mac, Linux)
 ```bash
 brew install ollama
 ollama pull gemma3   # 원하는 모델 풀링
 ```
-Connect AI에서 설정만 "Ollama"로 바꿔주시면 끝납니다.
+Linked Ai에서 설정만 "Ollama"로 바꿔주시면 끝납니다.
 
 ---
 
@@ -102,5 +102,5 @@ Connect AI에서 설정만 "Ollama"로 바꿔주시면 끝납니다.
 
 <p align="center">
   <strong>Built for Antigravity & Agent University</strong><br/>
-  Designed by <a href="https://github.com/wonseokjung">Jay</a> × Connect AI Architect
+  Designed by <a href="https://github.com/wonseokjung">Jay</a> × Linked Ai Architect
 </p>
